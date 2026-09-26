@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>咖啡豆感官测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* --- 样式区域 --- */
+        body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; background-color: #fcfbf7; color: #5c4033; margin: 0; display: flex; justify-content: center; min-height: 100vh; }
+        .container { max-width: 600px; padding: 20px; width: 100%; box-sizing: border-box; }
+        .card { background: #fffdf5; border: 2px solid #e0c9a3; border-radius: 12px; padding: 30px; margin-top: 20px; box-shadow: 0 4px 15px rgba(139, 69, 19, 0.1); position: relative; }
+        /* 轻微像素/复古感边框装饰 */
+        .card::before { content: ''; position: absolute; top: -5px; left: -5px; right: -5px; bottom: -5px; border: 1px solid rgba(210, 105, 30, 0.3); border-radius: 14px; pointer-events: none; }
+        
+        h1, h2 { color: #8b4513; text-align: center; margin-top: 0; font-family: 'Courier New', Courier, monospace; /* 轻微印刷感 */ font-weight: bold;}
+        .btn { display: block; width: 100%; padding: 16px; margin: 12px 0; background: #faf0e6; color: #5c4033; border: 2px solid #d2b48c; border-radius: 8px; font-size: 15px; cursor: pointer; text-align: left; transition: 0.2s; line-height: 1.4; box-shadow: 2px 2px 0px #d2b48c; font-weight: bold;}
+        .btn:hover { background: #ffe4c4; transform: translate(1px, 1px); box-shadow: 1px 1px 0px #d2b48c; }
+        .hidden { display: none; }
+        
+        /* 结果页样式 */
+        #result-view { text-align: center; }
+        .tag { display: inline-block; background: #f5deb3; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: #8b4513; margin: 2px; border: 1px solid #d2b48c;}
+        #debug-info { font-family: monospace; color: #a0522d; font-size: 12px; margin-top: 20px; border-top: 1px dashed #d2b48c; padding-top: 10px; }
+        
+        /* 装饰元素 */
+        .decoration-corner { position: absolute; width: 20px; height: 20px; border: 2px solid #d2b48c; }
+        .top-left { top: 10px; left: 10px; border-right: none; border-bottom: none; }
+        .top-right { top: 10px; right: 10px; border-left: none; border-bottom: none; }
+        .bottom-left { bottom: 10px; left: 10px; border-right: none; border-top: none; }
+        .bottom-right { bottom: 10px; right: 10px; border-left: none; border-top: none; }
+        
+        .coffee-bean-icon { font-size: 24px; text-align: center; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="start-view" class="card">
+        <div class="decoration-corner top-left"></div>
+        <div class="decoration-corner top-right"></div>
+        <div class="decoration-corner bottom-left"></div>
+        <div class="decoration-corner bottom-right"></div>
+        
+        <div class="coffee-bean-icon">☕</div>
+        <h1 style="font-size: 28px; letter-spacing: 2px;">测测你是哪种咖啡豆</h1>
+        <p style="text-align:center; color:#a0522d; font-size: 14px; margin-bottom: 40px;">如果你是一颗咖啡豆，你会是什么味道？</p>
+        
+        <button class="btn" style="text-align:center; font-size: 18px; padding: 20px; background: #e0c9a3; border-color: #8b4513; color: #5c4033; box-shadow: 3px 3px 0px #8b4513;" onclick="start()">
+            ▶ 开始测试 START
+        </button>
+    </div>
+
+    <div id="quiz-view" class="card hidden">
+        <div style="display:flex; justify-content:space-between; color:#a0522d; font-size:14px; margin-bottom:15px; border-bottom: 1px dashed #d2b48c; padding-bottom: 10px;">
+            <span id="progress">进度 1 / 20</span>
+            <span>Brewing...</span>
+        </div>
+        <h2 id="question-text" style="font-size:18px; margin-bottom:30px; font-weight: bold; text-align: left; line-height: 1.5; color: #5c4033;">题目加载中...</h2>
+        <div id="options-box"></div>
+        
+        <button id="prev-btn" class="btn" style="background: transparent; border: 1px dashed #d2b48c; color: #a0522d; margin-top: 20px; font-size: 14px; box-shadow: none; text-align: center;" onclick="prevQ()">
+            ↩ 返回上一题
+        </button>
+    </div>
+
+    <div id="result-view" class="card hidden" style="text-align: center;">
+        <p style="color:#a0522d; font-size: 14px; letter-spacing: 1px; margin-bottom: 5px;">你的咖啡豆原型是</p>
+        <h1 id="bean-name" style="font-size:32px; margin:10px 0; color: #8b4513; border-bottom: 2px solid #e0c9a3; padding-bottom: 10px; display: inline-block;"></h1>
+        
+        <div style="margin: 15px 0;">
+            <p style="font-size: 14px; color: #a0522d; margin-bottom: 5px; font-weight: bold;">风味指纹</p>
+            <div id="bean-tags" style="margin-bottom: 20px;"></div>
+        </div>
+
+        <div style="background: #faf0e6; padding: 20px; border-radius: 8px; margin-bottom: 25px; text-align: left; border-left: 4px solid #d2b48c;">
+            <h3 style="color: #8b4513; margin: 0 0 10px 0; font-size: 16px;">💬 你的豆设</h3>
+            <p id="bean-persona" style="font-size: 14px; line-height: 1.6; color: #5c4033; margin: 0;"></p>
+        </div>
+        
+        <div style="background: #fffdf5; padding: 20px; border-radius: 8px; margin-bottom: 25px; text-align: left; border: 1px dashed #e0c9a3;">
+            <h3 style="color: #8b4513; margin: 0 0 10px 0; font-size: 16px;">📖 寻豆师手记</h3>
+            <p id="bean-story" style="font-size: 14px; line-height: 1.6; color: #6b4e31; margin: 0;"></p>
+        </div>
+
+        <div style="width: 100%; max-width: 400px; height: 250px; margin: 0 auto 30px; position: relative;">
+            <canvas id="radarChart"></canvas>
+        </div>
+        
+        <button class="btn" style="text-align:center; background: #e0c9a3; border-color: #8b4513; color: #5c4033; box-shadow: 2px 2px 0px #8b4513;" onclick="location.reload()">↺ 再测一次</button>
+        
+        <div id="debug-info" style="font-size: 10px; color: #a0522d; margin-top: 10px;"></div>
+    </div>
+
+<script>
+    // ================= 1. 咖啡豆数据库 (8款) =================
+    // 维度定义：
+    // L (Lightness/Brightness): 明亮度、酸度、轻盈感。高分代表果酸明亮、轻盈透气；低分代表低酸、沉稳。
+    // B (Body/Thickness): 醇厚度、包裹感。高分代表厚重、浓郁、包裹感强；低分代表水感、清爽。
+    // A (Aroma/Floral): 香气、花香/茶感。高分代表花香浓郁、嗅觉体验丰富；低分代表偏向基础风味。
+    // S (Sweetness/Warmth): 甜感、温暖度。高分代表焦糖/巧克力甜、温暖安心；低分代表清冷、个性。
+    // C (Complexity/Wildness): 复杂性、个性/野性。高分代表风味复杂、个性强烈（如酒香、烟熏、泥土）；低分代表干净、平衡、规矩。
+
+    const BEANS = [
+        { 
+            id: "yirgacheffe", 
+            name: "耶加雪菲 (Yirgacheffe)", 
+            tags: ["茉莉花香", "柠檬柑橘", "清茶感", "明亮"],
+            persona: "内心敏感细腻，有着自己绝对坚持的小世界。", 
+            story: "它是咖啡界的“小清新”鼻祖。来自常年雾气弥漫的高地，因为采用了水洗处理，果酸表现得非常干净透亮。生豆小巧紧致，喝起来像是一杯带着高级白花香气的清茶。", 
+            stats: { L: 9, B: 3, A: 10, S: 5, C: 4 } 
+        },
+        { 
+            id: "geisha", 
+            name: "瑰夏 (Geisha)", 
+            tags: ["复合花香", "水蜜桃", "佛手柑", "极高辨识度"],
+            persona: "有点招摇、自带气场，一出场就能吸引所有人目光的漂亮家伙。", 
+            story: "产量极少、身价高昂的“咖啡界香奈儿”。它极度挑剔高海拔与冷热交替的微气候，豆体像优雅的柳叶。只要喝过一次，你就会被它极具爆发力的香气记住，很难忘记。", 
+            stats: { L: 8, B: 4, A: 10, S: 6, C: 8 } 
+        },
+        { 
+            id: "kenya", 
+            name: "肯尼亚 AA (Kenya AA)", 
+            tags: ["黑莓果汁", "圣女果", "活泼酸质", "多汁饱满"],
+            persona: "讲话很直接，爱憎分明、风风火火的行动派。",
+            story: "长在1500米以上的红矿土壤里，喝足了阳光。“AA”代表着最高等级的大颗粒饱满豆子。它的酸度一点也不遮掩，喝起来就像在喝一杯浓郁鲜活的莓果汁，非常过瘾。", 
+            stats: { L: 10, B: 6, A: 5, S: 4, C: 6 } 
+        },
+        { 
+            id: "bourbon", 
+            name: "波旁 (Bourbon)", 
+            tags: ["烤花生", "焦糖", "牛奶巧克力", "顺滑微甜"],
+            persona: "看起来很好相处，不争不抢，总是默默照顾大家的老好人。", 
+            story: "这是奠定经典咖啡味道的基石，也是你平时最常喝到的那个“熟悉的味道”。它酸度极低，带着坚果和焦糖的甜感，像一杯温热的牛奶巧克力，不惊艳但让人觉得舒服又安心。", 
+            stats: { L: 2, B: 7, A: 3, S: 9, C: 2 } 
+        },
+        { 
+            id: "mandheling", 
+            name: "曼特宁 (Mandheling)", 
+            tags: ["森林泥土", "草本香料", "黑巧克力", "醇厚微苦"],
+            persona: "沉默寡言、不随波逐流，但办事非常靠谱的实干家。", 
+            story: "名字其实是个美丽的误会，源自当地的一个民族。为了应对潮湿的热带雨林气候，咖农发明了“湿刨法”，不仅让生豆长得像羊蹄，更造就了它极高的醇厚度和迷人的微苦，很有力量感。", 
+            stats: { L: 1, B: 10, A: 2, S: 3, C: 7 } 
+        },
+        { 
+            id: "bluemountain", 
+            name: "蓝山 (Blue Mountain)", 
+            tags: ["绝对平衡", "淡淡榛果", "丝滑口感", "温和不突兀"],
+            persona: "永远体面周到，做事滴水不漏、挑不出毛病的端水大师。", 
+            story: "只有种在海拔1000米以上法定产区里的，才能叫“100%蓝山”。它是世界上少有用专属木桶装运的豆子。最大的特点就是没有短板，酸甜苦达到了极其完美的平衡，口感如丝绸般滑顺。", 
+            stats: { L: 5, B: 6, A: 5, S: 7, C: 3 } 
+        },
+        { 
+            id: "tarrazu", 
+            name: "塔拉珠 (Tarrazu)", 
+            tags: ["蜂蜜清甜", "黄桃杏子", "柔和微酸", "干净度高"],
+            persona: "充满阳光，自带松弛感，和谁都能聊得来的乐天派。", 
+            story: "来自高海拔火山区，不仅土壤肥沃，当地拿手的“蜜处理”工艺也是一绝。它的酸度非常温和，入口是黄桃和杏子的果香，尾韵还带着像蜂蜜一样的清甜，非常讨喜。", 
+            stats: { L: 6, B: 5, A: 6, S: 8, C: 4 } 
+        },
+        { 
+            id: "antigua", 
+            name: "安提瓜 (Antigua)", 
+            tags: ["烟熏火燎", "可可苦甜", "微辛香", "深沉有力"],
+            persona: "外表粗犷内敛，历经千帆，内心很有故事的成熟灵魂。", 
+            story: "这是一款长在活火山脚下的豆子，土壤里全是火山灰。由于豆质极其坚硬，它非常耐烘焙。自带一种独特的“烟熏炭烤”香气，配上可可的苦甜，风味深沉，很适合在一个人的时候细细品味。", 
+            stats: { L: 3, B: 8, A: 4, S: 4, C: 9 } 
+        }
+    ];
+
+    // ================= 2. 感官测试题库 (20题) =================
+    // 计分维度：L(明亮度), B(醇厚度), A(香气), S(甜感/温暖), C(复杂度/个性)
+    const QUESTIONS = [
+        { 
+            text: "1. 走在陌生的街上，一阵微风吹过，哪种突然飘来的气味会让你忍不住停下脚步甚至回头寻找？", 
+            options: [ 
+                { text: "雨后植物的清新与隐约的白花香", scores: { A: 3, L: 2, B: -1 } }, 
+                { text: "刚出炉的烘焙麦子与焦糖的甜香", scores: { S: 3, B: 1, L: -1 } }, 
+                { text: "潮湿泥土混合着森林古树的木质气息", scores: { C: 3, B: 2, L: -2 } }, 
+                { text: "浓郁、微苦又带点霸道的黑巧克力味", scores: { B: 3, C: 2, S: -1 } } 
+            ] 
+        },
+        { 
+            text: "2. 如果要为你的独处空间挑选一种常驻气息，你会偏向于？", 
+            options: [ 
+                { text: "甜美活泼的莓果或柑橘调（明亮跳跃）", scores: { L: 3, A: 1, C: 1 } }, 
+                { text: "柔和包容的香草坚果调（温暖安心）", scores: { S: 3, B: 1, C: -2 } }, 
+                { text: "沉稳神秘的东方香料调（深邃幽静）", scores: { C: 3, B: 2, L: -1 } }, 
+                { text: "干净冷冽的晨露与茶香调（清透自然）", scores: { L: 2, A: 2, B: -2 } } 
+            ] 
+        },
+        { 
+            text: "3. 翻开一本泛黄的旧书，你最希望夹在书页里的是什么？", 
+            options: [ 
+                { text: "一枚风干的酸甜柠檬片或柑橘皮", scores: { L: 3, A: 1 } }, 
+                { text: "一片带着余香的玫瑰或茉莉花瓣", scores: { A: 3, L: 1 } }, 
+                { text: "一颗烤得微焦的榛果", scores: { S: 2, B: 2, C: -1 } }, 
+                { text: "一片脉络分明的干燥烟草叶", scores: { C: 3, B: 1, L: -2 } } 
+            ] 
+        },
+        { 
+            text: "4. 此时有人递给你一杯晶莹剔透的琥珀色液体，凭直觉，你认为它的温度是？", 
+            options: [ 
+                { text: "冒着寒气的冰镇，杯壁挂着水珠", scores: { L: 3, B: -2, S: -1 } }, 
+                { text: "刚刚好贴合肌肤的微温，温润不烫手", scores: { S: 3, B: 1, C: -1 } }, 
+                { text: "刚刚煮沸的滚烫，升腾着热气", scores: { B: 2, C: 2, L: -1 } }, 
+                { text: "随着时间渐渐变凉的常温，带有一丝清冷", scores: { L: 2, A: 1, S: -2 } } 
+            ] 
+        },
+        { 
+            text: "5. 想象你正走入一个未知的房间，你希望房间的整体光影和色调是？", 
+            options: [ 
+                { text: "阳光穿透落地窗，明亮跳跃的浅黄或浅橘色", scores: { L: 3, S: 1, B: -1 } }, 
+                { text: "挂着暖黄壁灯，温润包容的焦糖或浅卡其色", scores: { S: 3, B: 2, C: -1 } }, 
+                { text: "光线幽暗，充满神秘感的深酒红或暗紫色", scores: { C: 3, B: 1, L: -2 } }, 
+                { text: "只有壁炉闪烁，经典复古的深棕或黑白灰", scores: { B: 3, C: 2, S: 1 } } 
+            ] 
+        },
+        { 
+            text: "6. 在傍晚的云彩中，你最容易被哪种天空的颜色打动？", 
+            options: [ 
+                { text: "干净剔透的粉蓝交织", scores: { L: 2, A: 2, B: -2 } }, 
+                { text: "热烈张扬的橘红晚霞", scores: { L: 3, C: 1, S: 1 } }, 
+                { text: "渐渐暗沉的深紫调", scores: { C: 3, B: 2, L: -1 } }, 
+                { text: "暴雨降临前的灰黑色", scores: { B: 3, C: 2, A: -1 } } 
+            ] 
+        },
+        { 
+            text: "7. 周末的下午，你更希望自己置身于怎样的环境温度与体感中？", 
+            options: [ 
+                { text: "清爽微凉的秋风中，穿着单薄但透气的亚麻衬衫", scores: { L: 3, B: -3, A: 1 } }, 
+                { text: "温暖的阳光房里，身上披着柔软贴肤的羊绒毯", scores: { S: 3, B: 1, C: -1 } }, 
+                { text: "干燥温暖的壁炉旁，被热气和安全感紧紧包裹", scores: { B: 3, S: 2, L: -2 } }, 
+                { text: "潮湿闷热的热带雨林边缘，感受空气中黏稠的水汽", scores: { B: 3, C: 3, L: -3 } } 
+            ] 
+        },
+        { 
+            text: "8. 盲摸一种布料，哪种触感会让你觉得最贴合你此刻的心境？", 
+            options: [ 
+                { text: "轻盈透气、顺滑冰凉的丝绸", scores: { L: 3, B: -2, A: 1 } }, 
+                { text: "柔软蓬松、吸水性极好的纯棉", scores: { S: 3, B: 1, C: -2 } }, 
+                { text: "丝绒般绵密、带有厚重垂坠感的法兰绒", scores: { B: 3, S: 2, L: -1 } }, 
+                { text: "带有颗粒感、粗粝但真实的粗呢粗麻", scores: { C: 3, B: 2, L: -2 } } 
+            ] 
+        },
+        { 
+            text: "9. 当你吃甜点时，你最偏爱哪种在舌尖融化的质地？", 
+            options: [ 
+                { text: "像水果冰沙一样清脆、瞬间化开，留下清爽", scores: { L: 3, B: -3, A: 1 } }, 
+                { text: "像果冻一样Q弹，带有轻微的抗拒感", scores: { L: 2, C: 1, B: -1 } }, 
+                { text: "像半熟芝士一样顺滑，在口腔里温柔铺开", scores: { S: 3, B: 2, C: -1 } }, 
+                { text: "像生巧一样浓郁绵密，化不开的厚重感", scores: { B: 4, C: 1, L: -2 } } 
+            ] 
+        },
+        { 
+            text: "10. 你的面前摆着四种新鲜采集的果实，你最想尝一口的是？", 
+            options: [ 
+                { text: "爽脆多汁、酸度明亮的青苹果或百香果", scores: { L: 4, S: -1, B: -1 } }, 
+                { text: "熟透爆汁、酸甜平衡的水蜜桃或樱桃", scores: { A: 2, S: 2, L: 1 } }, 
+                { text: "略带微涩，但咀嚼后会回甘的青橄榄", scores: { C: 3, S: 1, L: -1 } }, 
+                { text: "完全风干、甜度高度浓缩的黑葡萄干", scores: { B: 2, S: 3, L: -2 } } 
+            ] 
+        },
+        { 
+            text: "11. 当生活中遇到一点“苦”时，你习惯用哪种“甜”来中和它？", 
+            options: [ 
+                { text: "清爽解腻的蜂蜜水或枫糖浆", scores: { L: 2, S: 2, B: -1 } }, 
+                { text: "醇香绵长的焦糖酱", scores: { S: 3, B: 2, L: -1 } }, 
+                { text: "浓郁热烈的黑糖块", scores: { B: 3, S: 2, C: 1 } }, 
+                { text: "我不需要外来的甜，我喜欢苦尽甘来自己的余韵", scores: { C: 3, B: 2, S: -2 } } 
+            ] 
+        },
+        { 
+            text: "12. 对于“酸味”的接受度，不仅是味觉，也是生活态度的隐喻，你更接近？", 
+            options: [ 
+                { text: "极度喜爱，认为那种刺激感是灵魂和活力的来源", scores: { L: 4, C: 1, B: -2 } }, 
+                { text: "喜欢像水果一样自然活泼的微酸，能带来新鲜感", scores: { L: 2, A: 2, S: 1 } }, 
+                { text: "只能接受作为点缀的酸，不能喧宾夺主，更追求平稳", scores: { S: 3, B: 2, L: -2 } }, 
+                { text: "极其排斥任何酸涩，偏爱纯粹的醇厚与沉稳", scores: { B: 4, C: 2, L: -4 } } 
+            ] 
+        },
+        { 
+            text: "13. 如果你可以立刻瞬移到一个地方去“放空”自己，你会选择？", 
+            options: [ 
+                { text: "充满野性与生机的高原，看动物迁徙，听风声", scores: { L: 2, C: 2, A: 1 } }, 
+                { text: "阳光充沛、微风和煦的庄园，看漫山植物", scores: { S: 2, A: 2, B: -1 } }, 
+                { text: "迷雾缭绕的高山，周围是茂密的森林与泥土香", scores: { C: 3, B: 2, L: -2 } }, 
+                { text: "面对广阔蔚蓝的火山海岸线，吹着带着咸味的海风", scores: { C: 2, B: 2, L: 1 } } 
+            ] 
+        },
+        { 
+            text: "14. 在大自然中，你觉得哪种形态的水最像你的内在？", 
+            options: [ 
+                { text: "从高处跌落、水花四溅、清脆响亮的瀑布", scores: { L: 3, C: 1, B: -1 } }, 
+                { text: "缓缓流淌、清澈见底、波澜不惊的溪流", scores: { S: 2, L: 2, C: -2 } }, 
+                { text: "深邃宁静、倒映着周遭景物的湖泊", scores: { S: 3, B: 2, L: -1 } }, 
+                { text: "表面平静，但内部暗流涌动、蕴藏力量的深海", scores: { B: 3, C: 2, L: -2 } } 
+            ] 
+        },
+        { 
+            text: "15. 在森林中迷路时，你希望引导你走出去的信号是？", 
+            options: [ 
+                { text: "一群色彩斑斓、鸣叫着的飞鸟", scores: { L: 3, C: 1 } }, 
+                { text: "树叶间漏下的斑驳阳光", scores: { S: 3, L: 1 } }, 
+                { text: "远处传来隐隐约约的低沉水流声", scores: { B: 3, C: 1 } }, 
+                { text: "一股若有似无的奇异花香", scores: { A: 4, C: 1 } } 
+            ] 
+        },
+        { 
+            text: "16. 你更倾向于如何处理一段复杂的人际关系或棘手的任务？", 
+            options: [ 
+                { text: "快刀斩乱麻，去除所有杂质，追求干净透明的结果", scores: { L: 3, C: -2, B: -1 } }, 
+                { text: "交给时间，顺其自然，让事情自己慢慢发酵出结果", scores: { S: 2, C: 1, L: -1 } }, 
+                { text: "保留一些黏连和模糊地带，在复杂中寻求圆润的平衡", scores: { B: 2, S: 2, C: -1 } }, 
+                { text: "把自己关起来，在封闭的空间里深度思考，然后爆发", scores: { C: 4, B: 2, L: -2 } } 
+            ] 
+        },
+        { 
+            text: "17. 在别人眼中，你的外在表现和内在性格的对比是？", 
+            options: [ 
+                { text: "表里如一，像水一样清澈透亮", scores: { L: 3, C: -2, S: 1 } }, 
+                { text: "外表安静，但内心却有极其强烈的色彩与跳跃的情绪", scores: { A: 3, C: 2, B: -1 } }, 
+                { text: "看起来随和温吞，但内心有很强的厚重感与个人底线", scores: { B: 3, S: 2, L: -1 } }, 
+                { text: "初见觉得难以接近（高冷），相处后觉得温暖甘甜", scores: { C: 2, S: 3, L: -1 } } 
+            ] 
+        },
+        { 
+            text: "18. 当你感到彻底疲惫时，哪种方式最能帮你“充电”？", 
+            options: [ 
+                { text: "毫无防备地晒一场日光浴，让阳光带走水分和烦恼", scores: { L: 2, S: 2, C: -1 } }, 
+                { text: "痛痛快快地洗一个热水澡，洗去所有的泥泞和疲惫", scores: { L: 3, B: -1, C: -2 } }, 
+                { text: "躲在一个完全隔音、没有光线的暗室里睡一觉", scores: { B: 3, C: 2, L: -2 } }, 
+                { text: "慢慢熬煮一锅浓汤或热茶，在等待中疗愈自己", scores: { S: 3, B: 2, L: -1 } } 
+            ] 
+        },
+        { 
+            text: "19. 如果你的灵魂有形状，你觉得它最接近？", 
+            options: [ 
+                { text: "一颗晶莹剔透、折射着光芒的晨露", scores: { L: 4, A: 2, B: -3 } }, 
+                { text: "一团不断变换形态、温暖跳跃的火苗", scores: { L: 2, S: 2, C: 1 } }, 
+                { text: "一块经过时间打磨、圆润且包裹着记忆的琥珀", scores: { S: 3, B: 3, C: -1 } }, 
+                { text: "一块粗粝、深邃但无比坚固的黑曜石", scores: { C: 4, B: 3, L: -3 } } 
+            ] 
+        },
+        { 
+            text: "20. 测验即将结束，为你此刻的心情挑一首背景音乐，它会是？", 
+            options: [ 
+                { text: "节奏轻快跳跃的独立流行乐（Indie Pop）", scores: { L: 3, A: 1, B: -2 } }, 
+                { text: "慵懒浪漫的午后爵士乐（Bossa Nova）", scores: { S: 3, A: 1, C: -1 } }, 
+                { text: "充满神秘与异域风情的氛围电子（Ambient）", scores: { C: 3, A: 2, L: -1 } }, 
+                { text: "沉稳深邃、带有岁月感的古典大提琴独奏", scores: { B: 4, C: 1, L: -3 } } 
+            ] 
+        }
+    ];
+
+    // ================= 3. 逻辑引擎 =================
+    let currentQ = 0;
+    // 初始值设为中间值
+    let userStats = { L: 5, B: 5, A: 5, S: 5, C: 5 }; 
+    let historyStack = [];
+    
+    function start() {
+        currentQ = 0;
+        userStats = { L: 5, B: 5, A: 5, S: 5, C: 5 }; 
+        historyStack = [];
+        
+        document.getElementById('start-view').classList.add('hidden');
+        document.getElementById('result-view').classList.add('hidden');
+        document.getElementById('quiz-view').classList.remove('hidden');
+        showQ();
+    }
+
+   function showQ() {
+        if (currentQ >= QUESTIONS.length) {
+            calcResult();
+            return;
+        }
+
+        let prevBtn = document.getElementById('prev-btn');
+        if (currentQ === 0) {
+            prevBtn.style.display = 'none';
+        } else {
+            prevBtn.style.display = 'block';
+        }
+        
+        let q = QUESTIONS[currentQ];
+        document.getElementById('progress').innerText = `进度 ${currentQ + 1} / ${QUESTIONS.length}`;
+        document.getElementById('question-text').innerText = q.text;
+        
+        let box = document.getElementById('options-box');
+        box.innerHTML = '';
+
+        q.options.forEach(opt => {
+            let btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.innerHTML = opt.text; 
+            btn.onclick = () => {
+                
+                historyStack.push({ ...userStats }); 
+                
+                if (opt.scores) {
+                    for (let key in opt.scores) {
+                        userStats[key] += opt.scores[key];
+                        // 限制分数范围
+                        if(userStats[key] > 10) userStats[key] = 10;
+                        if(userStats[key] < 0) userStats[key] = 0;
+                    }
+                }
+                currentQ++;
+                showQ();
+            };
+            box.appendChild(btn);
+        });
+    }
+
+    function prevQ() {
+        if (currentQ > 0) {
+            currentQ--;
+            if (historyStack.length > 0) {
+                userStats = historyStack.pop();
+            }
+            showQ();
+        }
+    }
+
+    function calcResult() {
+        document.getElementById('quiz-view').classList.add('hidden');
+        document.getElementById('result-view').classList.remove('hidden');
+
+        // 计算欧几里得距离的平方
+        let scoredBeans = BEANS.map(bean => {
+            let diff = 
+                Math.pow(userStats.L - bean.stats.L, 2) +
+                Math.pow(userStats.B - bean.stats.B, 2) +
+                Math.pow(userStats.A - bean.stats.A, 2) +
+                Math.pow(userStats.S - bean.stats.S, 2) +
+                Math.pow(userStats.C - bean.stats.C, 2);
+            return { bean: bean, diff: diff };
+        });
+
+        scoredBeans.sort((a, b) => a.diff - b.diff);
+
+        let bestBean = null;
+        let top1 = scoredBeans[0];
+        let top2 = scoredBeans[1];
+
+        // 防撞车随机逻辑
+        if (top2 && (top2.diff - top1.diff < 10)) {
+            if (Math.random() > 0.6) {
+                bestBean = top2.bean; 
+            } else {
+                bestBean = top1.bean;
+            }
+        } else {
+            bestBean = top1.bean;
+        }
+
+        // 显示结果内容
+        document.getElementById('bean-name').innerText = bestBean.name;
+        
+        let tagsContainer = document.getElementById('bean-tags');
+        tagsContainer.innerHTML = '';
+        bestBean.tags.forEach(tag => {
+            let span = document.createElement('span');
+            span.className = 'tag';
+            span.innerText = tag;
+            tagsContainer.appendChild(span);
+        });
+
+        document.getElementById('bean-persona').innerText = bestBean.persona;
+        document.getElementById('bean-story').innerText = bestBean.story;
+
+        // 调试信息
+        document.getElementById('debug-info').innerHTML = 
+            `明亮(L):${userStats.L} | 醇厚(B):${userStats.B} | 香气(A):${userStats.A} | 甜暖(S):${userStats.S} | 复杂(C):${userStats.C}`;
+
+        drawRadarChart();
+    }
+    
+    // ================= 4. 雷达图绘制 =================
+    let myRadarChart = null;
+
+    function drawRadarChart() {
+        const ctx = document.getElementById('radarChart');
+        if (!ctx) return;
+
+        if (myRadarChart) {
+            myRadarChart.destroy();
+        }
+
+        myRadarChart = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: ['明亮/酸度 (L)', '醇厚/触感 (B)', '香气/花香 (A)', '甜感/温暖 (S)', '复杂/个性 (C)'],
+                datasets: [{
+                    label: '感官偏好',
+                    data: [userStats.L, userStats.B, userStats.A, userStats.S, userStats.C],
+                    borderColor: 'rgba(139, 69, 19, 0.8)', // 咖啡色边框
+                    borderWidth: 2,
+                    backgroundColor: 'rgba(210, 105, 30, 0.3)', // 暖橙色填充
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#8b4513',
+                    pointRadius: 4,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(139, 69, 19, 0.2)' }, 
+                        grid: { color: 'rgba(139, 69, 19, 0.1)' },      
+                        pointLabels: { 
+                            color: '#8b4513', 
+                            font: { size: 11, family: "'PingFang SC', sans-serif", weight: 'bold' } 
+                        },
+                        ticks: { display: false, maxTicksLimit: 5 }, 
+                        suggestedMin: 0,
+                        suggestedMax: 10
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
